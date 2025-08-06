@@ -1,8 +1,8 @@
+use std::fmt::Display;
 use crate::ai_agent::AIAgent;
-use crate::trace_error;
 use serenity::all::{Context, EventHandler, Message};
 use serenity::async_trait;
-use tracing::{info_span, trace, warn};
+use tracing::{error, info_span, trace, warn};
 
 pub struct Bot {
     ai_agent: AIAgent,
@@ -29,7 +29,7 @@ impl EventHandler for Bot {
 
         let message = &msg.content;
 
-        let span = info_span!("chatgpt_query");
+        let span = info_span!("message_received");
         let _guard = span.enter();
 
         if !message.contains("\n") {
@@ -57,6 +57,9 @@ impl EventHandler for Bot {
         let english = message.pop().unwrap();
         let german = message.pop().unwrap();
 
+        let query_span = info_span!("chatgpt_query");
+        let _query_guard = query_span.enter();
+
         let response = match self.ai_agent.query_chatgpt(english, german).await {
             Some(value) => value,
             None => return,
@@ -66,5 +69,11 @@ impl EventHandler for Bot {
             msg.reply(ctx.http, response).await,
             "Failed to send response reply",
         );
+    }
+}
+
+pub fn trace_error<T, E: Display>(res: Result<T, E>, error_message: &str) {
+    if let Err(error) = res {
+        error!("{}. Error: {}", error_message, error);
     }
 }

@@ -1,14 +1,12 @@
-mod ai_agent;
-mod discord;
-
-use crate::ai_agent::AIAgent;
-use crate::discord::Bot;
+use snotra::ai_agent::AIAgent;
+use snotra::discord::Bot;
 use chatgpt::client::ChatGPT;
 use serenity::all::{Context, CurrentUser, EventHandler, GatewayIntents, Message, Settings};
 use serenity::{Client, async_trait};
 use std::env;
 use std::fmt::Display;
 use tracing::{error, info, info_span, trace, warn};
+use snotra::tracing::setup_loki;
 
 #[tokio::main]
 async fn main() {
@@ -18,6 +16,8 @@ async fn main() {
         .expect("Missing DISCORD_ALLOWED_USERNAMES env var! (comma-separated)");
 
     let chatgpt = ChatGPT::new(openai_token).expect("Failed to connect to ChatGPT");
+
+    setup_loki().await;
 
     let intents = GatewayIntents::GUILD_MESSAGES
         | GatewayIntents::DIRECT_MESSAGES
@@ -33,10 +33,4 @@ async fn main() {
         .start()
         .await
         .expect("Failed to start discord client");
-}
-
-fn trace_error<T, E: Display>(res: Result<T, E>, error_message: &str) {
-    if let Err(error) = res {
-        error!("{}. Error: {}", error_message, error);
-    }
 }
