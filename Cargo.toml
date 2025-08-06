@@ -1,0 +1,18 @@
+[package]
+name = "snotra"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+# Rust++
+chatgpt_rs = "1.2"
+lazy_static = "1.5"
+tokio = { version = "1", features = ["rt-multi-thread", "macros"] }
+
+# Tracing & Logging
+tracing = "0.1"
+tracing-loki = { version = "0.2", default-features = false, features = ["rustls", "compat-0-2-1"] }
+tracing-subscriber = "0.3"
+
+# Discord
+serenity = "0.12"
