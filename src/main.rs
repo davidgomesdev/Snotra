@@ -1,12 +1,11 @@
+use chatgpt::client::ChatGPT;
+use serenity::all::GatewayIntents;
+use serenity::Client;
 use snotra::ai_agent::AIAgent;
 use snotra::discord::Bot;
-use chatgpt::client::ChatGPT;
-use serenity::all::{Context, CurrentUser, EventHandler, GatewayIntents, Message, Settings};
-use serenity::{Client, async_trait};
+use snotra::tracing::setup_loki;
 use std::env;
 use std::fmt::Display;
-use tracing::{error, info, info_span, trace, warn};
-use snotra::tracing::setup_loki;
 
 #[tokio::main]
 async fn main() {

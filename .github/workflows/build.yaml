@@ -1,0 +1,56 @@
+name: Build
+
+on:
+  push:
+    # On main, it's the build and release that will run
+    branches-ignore: [ "main" ]
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+    - uses: actions/checkout@v3
+
+    - uses: dorny/paths-filter@v2
+      id: filter
+      with:
+        filters: |
+          code:
+            - 'src/**'
+            - 'Cargo.lock'
+            - 'Cargo.toml'
+            - 'Cross.toml'
+
+  check-and-test:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.code == 'true' }}
+    env:
+      CARGO_TERM_COLOR: always
+    defaults:
+      run:
+        shell: bash
+        working-directory: .
+    steps:
+    - uses: rui314/setup-mold@v1
+
+    - uses: actions/checkout@v3
+    
+    - name: 🧯 - Check for compile errors
+      run: cargo check -q
+    
+    - name: 🧐 - Lint check
+      run: cargo clippy -- -D warnings
+
+    - name: 🔨 - Build
+      run: cargo build -q
+
+    - name: 🧪 - Run tests
+      run: cargo test -q --no-fail-fast
+      env:
+        DISCORD_CHANNEL_ID: ${{ secrets.DISCORD_CHANNEL_ID }}
+        DISCORD_TOKEN: ${{ secrets.DISCORD_TOKEN }}
+        DISCORD_TESTER_TOKEN: ${{ secrets.DISCORD_TESTER_TOKEN }}
+        VOTING_EMOJIS: ${{ secrets.VOTING_EMOJIS }}
