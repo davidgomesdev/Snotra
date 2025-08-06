@@ -1,8 +1,14 @@
+mod ai_agent;
+mod discord;
+
+use crate::ai_agent::AIAgent;
+use crate::discord::Bot;
 use chatgpt::client::ChatGPT;
-use chatgpt::types::CompletionResponse;
 use serenity::all::{Context, CurrentUser, EventHandler, GatewayIntents, Message, Settings};
 use serenity::{Client, async_trait};
 use std::env;
+use std::fmt::Display;
+use tracing::{error, info, info_span, trace, warn};
 
 #[tokio::main]
 async fn main() {
@@ -17,8 +23,9 @@ async fn main() {
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
+    let ai_agent = AIAgent::new(chatgpt);
     let mut discord = Client::builder(discord_token, intents)
-        .event_handler(Bot::new(chatgpt, discord_allowed_users))
+        .event_handler(Bot::new(ai_agent, discord_allowed_users))
         .await
         .expect("Error creating discord client");
 
@@ -28,31 +35,8 @@ async fn main() {
         .expect("Failed to start discord client");
 }
 
-struct Bot {
-    chatgpt: ChatGPT,
-    allowed_users: Vec<String>,
-}
-
-impl Bot {
-    fn new(chatgpt: ChatGPT, allowed_users: String) -> Bot {
-        let allowed_users = allowed_users.split(",").map(|v| v.to_string()).collect();
-
-        Bot {
-            chatgpt,
-            allowed_users,
-        }
-    }
-}
-
-#[async_trait]
-impl EventHandler for Bot {
-    async fn message(&self, ctx: Context, msg: Message) {
-        if msg.author.bot || !self.allowed_users.contains(&msg.author.name) {
-            return;
-        }
-
-        msg.reply(ctx.http, "Olá!")
-            .await
-            .expect("Failed to reply to user");
+fn trace_error<T, E: Display>(res: Result<T, E>, error_message: &str) {
+    if let Err(error) = res {
+        error!("{}. Error: {}", error_message, error);
     }
 }
