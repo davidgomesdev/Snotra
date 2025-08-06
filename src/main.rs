@@ -5,7 +5,6 @@ use snotra::ai_agent::AIAgent;
 use snotra::discord::Bot;
 use snotra::tracing::setup_loki;
 use std::env;
-use std::fmt::Display;
 
 #[tokio::main]
 async fn main() {
