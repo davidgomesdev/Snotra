@@ -54,13 +54,13 @@ jobs:
     - name: 🔨 - Build
       run: >
         cross build --release --target ${{ matrix.target }} && \
-          mv target/**/release/alertaemcena alertaemcena-${{ matrix.build }}
+          mv target/**/release/snotra snotra-${{ matrix.build }}
 
     - name: 📦 - Copy artifact
       uses: actions/upload-artifact@v4
       with:
-        name: alertaemcena-${{ matrix.build }}
-        path: alertaemcena-${{ matrix.build }}
+        name: snotra-${{ matrix.build }}
+        path: snotra-${{ matrix.build }}
         if-no-files-found: error
 
   release:
