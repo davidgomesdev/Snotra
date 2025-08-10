@@ -1,5 +1,5 @@
 use crate::ai_agent::Agent;
-use serenity::all::{Context, EventHandler, Message, User};
+use serenity::all::{Context, EventHandler, Message};
 use serenity::async_trait;
 use std::fmt::Display;
 use tracing::{error, info_span, trace, warn};
@@ -50,7 +50,13 @@ impl<A: Agent> EventHandler for Bot<A> {
 
         let response = match self.ai_agent.query_chatgpt(german, english).await {
             Some(value) => value,
-            None => return,
+            None => {
+                trace_error(
+                    msg.reply(ctx.http, "There was a problem querying ChatGPT.").await,
+                    "Failed to send error response reply",
+                );
+                return
+            },
         };
 
         trace_error(
@@ -76,7 +82,7 @@ impl<A: Agent> Bot<A> {
 }
 
 fn get_german_and_english_parts(message: &str) -> Option<(&str, &str)> {
-    let mut message: Vec<&str> = message.split("\n").collect();
+    let message: Vec<&str> = message.split("\n").collect();
 
     if message.len() < 2 {
         trace!("Message does not have at least 2 parts");
@@ -93,6 +99,12 @@ fn get_german_and_english_parts(message: &str) -> Option<(&str, &str)> {
     Some((german, english))
 }
 
+pub fn trace_error<T, E: Display>(res: Result<T, E>, error_message: &str) {
+    if let Err(error) = res {
+        error!("{}. Error: {}", error_message, error);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -100,21 +112,21 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn when_author_is_a_bot_should_not_be_allowed() {
-        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new().into(), "".to_string());
+        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new(), "".to_string());
 
         bot.is_author_allowed(true, "n/a");
     }
 
     #[test_log::test(tokio::test)]
     async fn when_author_is_not_in_allowed_list_should_not_be_allowed() {
-        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new().into(), "juff,ceff".to_string());
+        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new(), "juff,ceff".to_string());
 
         bot.is_author_allowed(true, "cov");
     }
 
     #[test_log::test(tokio::test)]
     async fn when_author_is_in_allowed_list_should_be_allowed() {
-        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new().into(), "jeff,caff".to_string());
+        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new(), "jeff,caff".to_string());
 
         bot.is_author_allowed(true, "caff");
     }
@@ -133,11 +145,5 @@ mod tests {
 
         assert_eq!(german, "etwas");
         assert_eq!(english, "something");
-    }
-}
-
-pub fn trace_error<T, E: Display>(res: Result<T, E>, error_message: &str) {
-    if let Err(error) = res {
-        error!("{}. Error: {}", error_message, error);
     }
 }
