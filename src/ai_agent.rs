@@ -1,22 +1,26 @@
+use async_trait::async_trait;
 use chatgpt::client::ChatGPT;
-use tracing::{error, info};
+use mockall::mock;
+use std::any::Any;
+use tracing::{debug, error, info};
 
-pub struct AIAgent {
-    chatgpt: ChatGPT
+pub struct AIAgent<L: LLM> {
+    llm: L,
 }
 
-impl AIAgent {
-    pub fn new(chatgpt: ChatGPT) -> Self {
-        Self { chatgpt }
+impl<L: LLM> AIAgent<L> {
+    pub fn new(llm: L) -> Self {
+        Self { llm }
     }
 
     pub async fn query_chatgpt(&self, english: &str, german: &str) -> Option<String> {
         info!(
-                "Querying ChatGPT for saying '{}' with '{}'",
-                english, german
-            );
+            "Querying ChatGPT for saying '{}' with '{}'",
+            english, german
+        );
 
-        let result = self.chatgpt
+        let result = self
+            .llm
             .send_message(format!(
                 "In German, is '{}' the right way to say '{}'?",
                 german, english
@@ -24,13 +28,108 @@ impl AIAgent {
             .await;
 
         if let Err(error) = result {
-            error!("Failed sending the query to ChatGPT. Error: {}", error);
-            return None
+            error!("Failed sending the query to ChatGPT. Error: {:?}", error);
+            return None;
         }
 
-        let mut result = result.unwrap();
-        let response = result.message_choices.pop().unwrap().message.content;
+        let response = result.unwrap();
 
-        Some(response)
+        debug!(
+            "Query finished with model '{}'. Response was: '{}'",
+            response.model, response.content
+        );
+
+        Some(response.content)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test_log::test(tokio::test)]
+    async fn when_validating_a_german_phrase_to_english_should_send_the_right_query() {
+        let mut llm_mock = MockLLM::new();
+        llm_mock.expect_send_message().return_once(move |_| {
+            Ok(LLMResponse::new(
+                "mock".to_string(),
+                "Yes, you are right!".to_string(),
+            ))
+        });
+
+        let agent = AIAgent::new(llm_mock);
+        let response = agent
+            .query_chatgpt("something", "etwas")
+            .await
+            .expect("Failed!");
+
+        assert_eq!("Yes, you are right!".to_string(), response);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_query_fails_should_return_none() {
+        let mut llm_mock = MockLLM::new();
+        llm_mock
+            .expect_send_message()
+            .return_once(move |_| Err(Box::new(())));
+
+        let agent = AIAgent::new(llm_mock);
+        assert_eq!(agent.query_chatgpt("something", "etwas").await, None);
+    }
+
+    mock! {
+        LLM {}
+        #[async_trait]
+        impl LLM for LLM {
+             async fn send_message(
+                &self,
+                message: String,
+            ) -> Result<LLMResponse, Box<dyn Any + Send + Sync>> ;
+        }
+    }
+}
+
+#[async_trait]
+pub trait LLM: Send + Sync {
+    async fn send_message(
+        &self,
+        message: String,
+    ) -> Result<LLMResponse, Box<dyn Any + Send + Sync>>;
+}
+
+pub struct LLMResponse {
+    pub model: String,
+    pub content: String,
+}
+
+impl LLMResponse {
+    pub fn new(model: String, content: String) -> Self {
+        Self { model, content }
+    }
+}
+
+pub struct ChatGPTLLM {
+    chat_gpt: ChatGPT,
+}
+
+impl ChatGPTLLM {
+    pub fn new(chat_gpt: ChatGPT) -> Self {
+        Self { chat_gpt }
+    }
+}
+
+#[async_trait]
+impl LLM for ChatGPTLLM {
+    async fn send_message(
+        &self,
+        message: String,
+    ) -> Result<LLMResponse, Box<dyn Any + Send + Sync>> {
+        match self.chat_gpt.send_message(message).await {
+            Ok(mut response) => Ok(LLMResponse::new(
+                response.model,
+                response.message_choices.pop().unwrap().message.content,
+            )),
+            Err(error) => Err(Box::new(error)),
+        }
     }
 }
