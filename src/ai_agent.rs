@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chatgpt::client::ChatGPT;
-use mockall::{automock, mock};
+use mockall::automock;
 use std::any::Any;
 use tracing::{debug, error, info};
 
@@ -31,8 +31,7 @@ impl<L: LLM> Agent for AIAgent<L> {
         let result = self
             .llm
             .send_message(format!(
-                "In German, is '{}' the right way to say '{}'?",
-                german, english
+                "In German, is '${german}' the right way to say '{english}'?",
             ))
             .await;
 
@@ -54,6 +53,7 @@ impl<L: LLM> Agent for AIAgent<L> {
 
 #[cfg(test)]
 mod tests {
+    use mockall::mock;
     use super::*;
 
     #[test_log::test(tokio::test)]
