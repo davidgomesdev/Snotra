@@ -1,16 +1,16 @@
-use std::fmt::Display;
-use crate::ai_agent::{AIAgent, LLM};
-use serenity::all::{Context, EventHandler, Message};
+use crate::ai_agent::Agent;
+use serenity::all::{Context, EventHandler, Message, User};
 use serenity::async_trait;
+use std::fmt::Display;
 use tracing::{error, info_span, trace, warn};
 
-pub struct Bot<L: LLM> {
-    ai_agent: AIAgent<L>,
+pub struct Bot<A: Agent> {
+    ai_agent: A,
     allowed_users: Vec<String>,
 }
 
-impl <L:LLM> Bot<L> {
-    pub fn new(ai_agent: AIAgent<L>, allowed_users: String) -> Bot<L> {
+impl<A: Agent> Bot<A> {
+    pub fn new(ai_agent: A, allowed_users: String) -> Bot<A> {
         let allowed_users = allowed_users.split(",").map(|v| v.to_string()).collect();
 
         Bot {
@@ -21,9 +21,9 @@ impl <L:LLM> Bot<L> {
 }
 
 #[async_trait]
-impl <L: LLM> EventHandler for Bot<L> {
+impl<A: Agent> EventHandler for Bot<A> {
     async fn message(&self, ctx: Context, msg: Message) {
-        if msg.author.bot || !self.allowed_users.contains(&msg.author.name) {
+        if !self.is_author_allowed(msg.author.bot, &msg.author.name) {
             return;
         }
 
@@ -43,24 +43,12 @@ impl <L: LLM> EventHandler for Bot<L> {
             )
         }
 
-        let mut message: Vec<&str> = message.split("\n").collect();
-
-        if message.len() < 2 {
-            trace!("Message does not have at least 2 parts");
-            return;
-        }
-
-        if message.len() > 2 {
-            warn!("Message has more than 2 parts, ignoring the extra");
-        }
-
-        let english = message.pop().unwrap();
-        let german = message.pop().unwrap();
+        let (german, english) = get_german_and_english_parts(message).expect("Should not have landed here.");
 
         let query_span = info_span!("chatgpt_query");
         let _query_guard = query_span.enter();
 
-        let response = match self.ai_agent.query_chatgpt(english, german).await {
+        let response = match self.ai_agent.query_chatgpt(german, english).await {
             Some(value) => value,
             None => return,
         };
@@ -69,6 +57,82 @@ impl <L: LLM> EventHandler for Bot<L> {
             msg.reply(ctx.http, response).await,
             "Failed to send response reply",
         );
+    }
+}
+
+impl<A: Agent> Bot<A> {
+
+    fn is_author_allowed(&self, is_author_bot: bool, author_name: &str) -> bool {
+        if is_author_bot
+            || !self
+            .allowed_users
+            .iter()
+            .any(|allowed_user| allowed_user == author_name)
+        {
+            return false;
+        }
+        true
+    }
+}
+
+fn get_german_and_english_parts(message: &str) -> Option<(&str, &str)> {
+    let mut message: Vec<&str> = message.split("\n").collect();
+
+    if message.len() < 2 {
+        trace!("Message does not have at least 2 parts");
+        return None;
+    }
+
+    if message.len() > 2 {
+        warn!("Message has more than 2 parts, ignoring the extra");
+    }
+
+    let german = message[0];
+    let english = message[1];
+
+    Some((german, english))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ai_agent::{MockAIAgent, MockChatGPTLLM};
+
+    #[test_log::test(tokio::test)]
+    async fn when_author_is_a_bot_should_not_be_allowed() {
+        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new().into(), "".to_string());
+
+        bot.is_author_allowed(true, "n/a");
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_author_is_not_in_allowed_list_should_not_be_allowed() {
+        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new().into(), "juff,ceff".to_string());
+
+        bot.is_author_allowed(true, "cov");
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_author_is_in_allowed_list_should_be_allowed() {
+        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new().into(), "jeff,caff".to_string());
+
+        bot.is_author_allowed(true, "caff");
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_message_has_two_parts_should_get_german_then_english() {
+        let (german, english) = get_german_and_english_parts("etwas\nsomething").unwrap();
+
+        assert_eq!(german, "etwas");
+        assert_eq!(english, "something");
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_message_has_more_than_two_parts_should_ignore_extra() {
+        let (german, english) = get_german_and_english_parts("etwas\nsomething\nmore").unwrap();
+
+        assert_eq!(german, "etwas");
+        assert_eq!(english, "something");
     }
 }
 

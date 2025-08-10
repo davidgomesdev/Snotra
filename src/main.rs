@@ -21,7 +21,7 @@ async fn main() {
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
-    let ai_agent = AIAgent::new(Box::new(ChatGPTLLM::new(chatgpt)));
+    let ai_agent = AIAgent::new(ChatGPTLLM::new(chatgpt));
     let mut discord = Client::builder(discord_token, intents)
         .event_handler(Bot::new(ai_agent, discord_allowed_users))
         .await
