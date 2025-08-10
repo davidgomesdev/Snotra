@@ -1,7 +1,7 @@
 use chatgpt::client::ChatGPT;
 use serenity::all::GatewayIntents;
 use serenity::Client;
-use snotra::ai_agent::AIAgent;
+use snotra::ai_agent::{AIAgent, ChatGPTLLM};
 use snotra::discord::Bot;
 use snotra::tracing::setup_loki;
 use std::env;
@@ -21,7 +21,7 @@ async fn main() {
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
-    let ai_agent = AIAgent::new(chatgpt);
+    let ai_agent = AIAgent::new(Box::new(ChatGPTLLM::new(chatgpt)));
     let mut discord = Client::builder(discord_token, intents)
         .event_handler(Bot::new(ai_agent, discord_allowed_users))
         .await

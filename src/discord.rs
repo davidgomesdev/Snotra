@@ -1,16 +1,16 @@
 use std::fmt::Display;
-use crate::ai_agent::AIAgent;
+use crate::ai_agent::{AIAgent, LLM};
 use serenity::all::{Context, EventHandler, Message};
 use serenity::async_trait;
 use tracing::{error, info_span, trace, warn};
 
-pub struct Bot {
-    ai_agent: AIAgent,
+pub struct Bot<L: LLM> {
+    ai_agent: AIAgent<L>,
     allowed_users: Vec<String>,
 }
 
-impl Bot {
-    pub fn new(ai_agent: AIAgent, allowed_users: String) -> Bot {
+impl <L:LLM> Bot<L> {
+    pub fn new(ai_agent: AIAgent<L>, allowed_users: String) -> Bot<L> {
         let allowed_users = allowed_users.split(",").map(|v| v.to_string()).collect();
 
         Bot {
@@ -21,7 +21,7 @@ impl Bot {
 }
 
 #[async_trait]
-impl EventHandler for Bot {
+impl <L: LLM> EventHandler for Bot<L> {
     async fn message(&self, ctx: Context, msg: Message) {
         if msg.author.bot || !self.allowed_users.contains(&msg.author.name) {
             return;
