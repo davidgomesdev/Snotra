@@ -1,6 +1,6 @@
 use async_trait::async_trait;
 use chatgpt::client::ChatGPT;
-use mockall::mock;
+use mockall::{automock, mock};
 use std::any::Any;
 use tracing::{debug, error, info};
 
@@ -12,8 +12,17 @@ impl<L: LLM> AIAgent<L> {
     pub fn new(llm: L) -> Self {
         Self { llm }
     }
+}
 
-    pub async fn query_chatgpt(&self, english: &str, german: &str) -> Option<String> {
+#[async_trait]
+pub trait Agent: Send + Sync {
+    async fn query_chatgpt(&self, german: &str, english: &str) -> Option<String>;
+}
+
+#[automock]
+#[async_trait]
+impl<L: LLM> Agent for AIAgent<L> {
+    async fn query_chatgpt(&self, german: &str, english: &str) -> Option<String> {
         info!(
             "Querying ChatGPT for saying '{}' with '{}'",
             english, german
@@ -59,7 +68,7 @@ mod tests {
 
         let agent = AIAgent::new(llm_mock);
         let response = agent
-            .query_chatgpt("something", "etwas")
+            .query_chatgpt("etwas", "something")
             .await
             .expect("Failed!");
 
@@ -74,7 +83,7 @@ mod tests {
             .return_once(move |_| Err(Box::new(())));
 
         let agent = AIAgent::new(llm_mock);
-        assert_eq!(agent.query_chatgpt("something", "etwas").await, None);
+        assert_eq!(agent.query_chatgpt("etwas", "something").await, None);
     }
 
     mock! {
@@ -119,6 +128,7 @@ impl ChatGPTLLM {
 }
 
 #[async_trait]
+#[automock]
 impl LLM for ChatGPTLLM {
     async fn send_message(
         &self,
