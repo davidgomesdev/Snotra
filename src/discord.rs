@@ -2,7 +2,7 @@ use crate::ai_agent::Agent;
 use serenity::all::{Context, EventHandler, Message};
 use serenity::async_trait;
 use std::fmt::Display;
-use tracing::{error, info_span, trace, warn};
+use tracing::{debug, error, info_span, trace, warn};
 
 pub struct Bot<A: Agent> {
     ai_agent: A,
@@ -23,6 +23,11 @@ impl<A: Agent> Bot<A> {
 #[async_trait]
 impl<A: Agent> EventHandler for Bot<A> {
     async fn message(&self, ctx: Context, msg: Message) {
+        if msg.guild_id.is_some() {
+            debug!("Received message from server, ignoring (as I only respond to DMs)");
+            return;
+        }
+
         if !self.is_author_allowed(msg.author.bot, &msg.author.name) {
             return;
         }
@@ -43,7 +48,8 @@ impl<A: Agent> EventHandler for Bot<A> {
             )
         }
 
-        let (german, english) = get_german_and_english_parts(message).expect("Should not have landed here.");
+        let (german, english) =
+            get_german_and_english_parts(message).expect("Should not have landed here.");
 
         let query_span = info_span!("chatgpt_query");
         let _query_guard = query_span.enter();
@@ -52,11 +58,12 @@ impl<A: Agent> EventHandler for Bot<A> {
             Some(value) => value,
             None => {
                 trace_error(
-                    msg.reply(ctx.http, "There was a problem querying ChatGPT.").await,
+                    msg.reply(ctx.http, "There was a problem querying ChatGPT.")
+                        .await,
                     "Failed to send error response reply",
                 );
-                return
-            },
+                return;
+            }
         };
 
         trace_error(
@@ -67,13 +74,12 @@ impl<A: Agent> EventHandler for Bot<A> {
 }
 
 impl<A: Agent> Bot<A> {
-
     fn is_author_allowed(&self, is_author_bot: bool, author_name: &str) -> bool {
         if is_author_bot
             || !self
-            .allowed_users
-            .iter()
-            .any(|allowed_user| allowed_user == author_name)
+                .allowed_users
+                .iter()
+                .any(|allowed_user| allowed_user == author_name)
         {
             return false;
         }
@@ -112,21 +118,28 @@ mod tests {
 
     #[test_log::test(tokio::test)]
     async fn when_author_is_a_bot_should_not_be_allowed() {
-        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new(), "".to_string());
+        let bot: Bot<MockAIAgent<MockChatGPTLLM>> =
+            Bot::new(MockAIAgent::<MockChatGPTLLM>::new(), "".to_string());
 
         bot.is_author_allowed(true, "n/a");
     }
 
     #[test_log::test(tokio::test)]
     async fn when_author_is_not_in_allowed_list_should_not_be_allowed() {
-        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new(), "juff,ceff".to_string());
+        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(
+            MockAIAgent::<MockChatGPTLLM>::new(),
+            "juff,ceff".to_string(),
+        );
 
         bot.is_author_allowed(true, "cov");
     }
 
     #[test_log::test(tokio::test)]
     async fn when_author_is_in_allowed_list_should_be_allowed() {
-        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(MockAIAgent::<MockChatGPTLLM>::new(), "jeff,caff".to_string());
+        let bot: Bot<MockAIAgent<MockChatGPTLLM>> = Bot::new(
+            MockAIAgent::<MockChatGPTLLM>::new(),
+            "jeff,caff".to_string(),
+        );
 
         bot.is_author_allowed(true, "caff");
     }
