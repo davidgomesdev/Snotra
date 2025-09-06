@@ -1,6 +1,6 @@
 use chatgpt::client::ChatGPT;
-use serenity::all::GatewayIntents;
 use serenity::Client;
+use serenity::all::GatewayIntents;
 use snotra::ai_agent::{AIAgent, ChatGPTLLM};
 use snotra::discord::Bot;
 use snotra::tracing::setup_loki;

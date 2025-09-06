@@ -1,8 +1,8 @@
 use lazy_static::lazy_static;
 use std::{env, io};
-use tracing::{info, warn, Level};
-use tracing_loki::url::Url;
+use tracing::{Level, info, warn};
 use tracing_loki::BackgroundTask;
+use tracing_loki::url::Url;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{filter, fmt};
@@ -21,7 +21,7 @@ fn build_loki_layer(base_url: Url) -> (tracing_loki::Layer, BackgroundTask) {
             .collect(),
         vec![].into_iter().collect(),
     )
-        .unwrap()
+    .unwrap()
 }
 
 pub async fn setup_loki() {

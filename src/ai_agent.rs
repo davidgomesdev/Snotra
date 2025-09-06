@@ -53,8 +53,8 @@ impl<L: LLM> Agent for AIAgent<L> {
 
 #[cfg(test)]
 mod tests {
-    use mockall::mock;
     use super::*;
+    use mockall::mock;
 
     #[test_log::test(tokio::test)]
     async fn when_validating_a_german_phrase_to_english_should_send_the_right_query() {
