@@ -37,43 +37,70 @@ impl<A: Agent> EventHandler for Bot<A> {
         let span = info_span!("message_received");
         let _guard = span.enter();
 
-        if !message.contains("\n") {
+        if message.contains("\n") {
+            let (german, english) =
+                get_german_and_english_parts(message).expect("Should not have landed here.");
+
+            let query_span = info_span!("chatgpt_query");
+            let _query_guard = query_span.enter();
+
+            let response = match self
+                .ai_agent
+                .validate_phrase_translation(german, english)
+                .await
+            {
+                Some(value) => value,
+                None => {
+                    trace_error(
+                        msg.reply(ctx.http, "There was a problem querying ChatGPT.")
+                            .await,
+                        "Failed to send error response reply",
+                    );
+                    return;
+                }
+            };
+
             trace_error(
+                msg.reply(ctx.http, response).await,
+                "Failed to send response reply",
+            );
+            return;
+        }
+
+        if message.contains(".") {
+            let (first, second) = get_german_words(message).expect("Should not have landed here.");
+
+            let query_span = info_span!("chatgpt_query");
+            let _query_guard = query_span.enter();
+
+            let response = match self.ai_agent.ask_word_difference(first, second).await {
+                Some(value) => value,
+                None => {
+                    trace_error(
+                        msg.reply(ctx.http, "There was a problem querying ChatGPT.")
+                            .await,
+                        "Failed to send error response reply",
+                    );
+                    return;
+                }
+            };
+
+            trace_error(
+                msg.reply(ctx.http, response).await,
+                "Failed to send response reply",
+            );
+
+            return;
+        }
+
+        trace_error(
                 msg.reply(
                     &ctx.http,
-                    "The message needs to be separated by a new line, like so:\n<English>\n<Geman>",
+                    "The translation message needs to be separated by a new line, like so:\n<English>\n<Geman>.\nIf a word difference is requested, it should by a dot, like so:\n<Erst Wort>\n<Zweitte Wort>.",
                 )
                 .await,
                 "Failed to send format message",
             )
-        }
-
-        let (german, english) =
-            get_german_and_english_parts(message).expect("Should not have landed here.");
-
-        let query_span = info_span!("chatgpt_query");
-        let _query_guard = query_span.enter();
-
-        let response = match self
-            .ai_agent
-            .validate_phrase_translation(german, english)
-            .await
-        {
-            Some(value) => value,
-            None => {
-                trace_error(
-                    msg.reply(ctx.http, "There was a problem querying ChatGPT.")
-                        .await,
-                    "Failed to send error response reply",
-                );
-                return;
-            }
-        };
-
-        trace_error(
-            msg.reply(ctx.http, response).await,
-            "Failed to send response reply",
-        );
     }
 }
 
@@ -92,7 +119,15 @@ impl<A: Agent> Bot<A> {
 }
 
 fn get_german_and_english_parts(message: &str) -> Option<(&str, &str)> {
-    let message: Vec<&str> = message.split("\n").collect();
+    split_message_by(message, "\n")
+}
+
+fn get_german_words(message: &str) -> Option<(&str, &str)> {
+    split_message_by(message, ".")
+}
+
+fn split_message_by<'a>(message: &'a str, split_char: &'a str) -> Option<(&'a str, &'a str)> {
+    let message: Vec<&str> = message.split(split_char).collect();
 
     if message.len() < 2 {
         trace!("Message does not have at least 2 parts");
@@ -146,6 +181,36 @@ mod tests {
         );
 
         bot.is_author_allowed(true, "caff");
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_message_has_no_dot_should_return_none() {
+        let res = get_german_words("etwas");
+
+        assert_eq!(res, None);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_message_has_a_dot_should_get_two_german_words() {
+        let (german, english) = get_german_words("etwas.sache").unwrap();
+
+        assert_eq!(german, "etwas");
+        assert_eq!(english, "sache");
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_message_has_more_than_two_dots_should_ignore_extra() {
+        let (german, english) = get_german_words("etwas.sache.wat").unwrap();
+
+        assert_eq!(german, "etwas");
+        assert_eq!(english, "sache");
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_message_has_only_one_part_should_return_none() {
+        let result = get_german_and_english_parts("etwas or something");
+
+        assert_eq!(result, None);
     }
 
     #[test_log::test(tokio::test)]

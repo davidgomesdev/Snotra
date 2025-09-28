@@ -63,7 +63,7 @@ impl<L: LLM> AIAgent<L> {
             response.model, response.content
         );
 
-        return Some(response.content);
+        Some(response.content)
     }
 }
 
@@ -103,8 +103,7 @@ mod tests {
         llm_mock
             .expect_send_message()
             .with(eq(
-                "In German, what is the difference between 'etwas' and 'sache'?"
-                    .to_string(),
+                "In German, what is the difference between 'etwas' and 'sache'?".to_string(),
             ))
             .return_once(move |_| {
                 Ok(LLMResponse::new(
@@ -119,7 +118,10 @@ mod tests {
             .await
             .expect("Failed!");
 
-        assert_eq!("Etwas is something and sache is thing".to_string(), response);
+        assert_eq!(
+            "Etwas is something and sache is thing".to_string(),
+            response
+        );
     }
 
     #[test_log::test(tokio::test)]
@@ -146,12 +148,7 @@ mod tests {
             .return_once(move |_| Err(Box::new(())));
 
         let agent = AIAgent::new(llm_mock);
-        assert_eq!(
-            agent
-                .ask_word_difference("etwas", "sache")
-                .await,
-            None
-        );
+        assert_eq!(agent.ask_word_difference("etwas", "sache").await, None);
     }
 
     mock! {
