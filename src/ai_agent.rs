@@ -31,7 +31,7 @@ impl<L: LLM> Agent for AIAgent<L> {
         let result = self
             .llm
             .send_message(format!(
-                "In German, is '${german}' the right way to say '{english}'?",
+                "In German, is '{german}' the right way to say '{english}'? If not, explain why and mark the differences in bold.",
             ))
             .await;
 
@@ -54,21 +54,27 @@ impl<L: LLM> Agent for AIAgent<L> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use mockall::mock;
+    use mockall::{mock, predicate::eq};
 
     #[test_log::test(tokio::test)]
     async fn when_validating_a_german_phrase_to_english_should_send_the_right_query() {
         let mut llm_mock = MockLLM::new();
-        llm_mock.expect_send_message().return_once(move |_| {
-            Ok(LLMResponse::new(
-                "mock".to_string(),
-                "Yes, you are right!".to_string(),
+        llm_mock
+            .expect_send_message()
+            .with(eq(
+                "In German, is 'diese wort' the right way to say 'this word'? If not, explain why and mark the differences in bold."
+                    .to_string(),
             ))
-        });
+            .return_once(move |_| {
+                Ok(LLMResponse::new(
+                    "mock".to_string(),
+                    "Yes, you are right!".to_string(),
+                ))
+            });
 
         let agent = AIAgent::new(llm_mock);
         let response = agent
-            .query_chatgpt("etwas", "something")
+            .query_chatgpt("diese wort", "this word")
             .await
             .expect("Failed!");
 
