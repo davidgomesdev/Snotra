@@ -54,7 +54,11 @@ impl<A: Agent> EventHandler for Bot<A> {
         let query_span = info_span!("chatgpt_query");
         let _query_guard = query_span.enter();
 
-        let response = match self.ai_agent.query_chatgpt(german, english).await {
+        let response = match self
+            .ai_agent
+            .validate_phrase_translation(german, english)
+            .await
+        {
             Some(value) => value,
             None => {
                 trace_error(
