@@ -96,7 +96,7 @@ impl<A: Agent> EventHandler for Bot<A> {
         trace_error(
                 msg.reply(
                     &ctx.http,
-                    "The translation message needs to be separated by a new line, like so:\n<English>\n<Geman>.\nIf a word difference is requested, it should by a dot, like so:\n<Erst Wort>\n<Zweitte Wort>.",
+                    "The translation message needs to be separated by a new line, like so:\n<English>\n<Geman>\nIf a word difference is requested, it should by a dot, like so:\n<Erst Wort>.<Zweitte Wort>",
                 )
                 .await,
                 "Failed to send format message",

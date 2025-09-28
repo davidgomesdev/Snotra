@@ -49,6 +49,8 @@ impl<L: LLM> Agent for AIAgent<L> {
 
 impl<L: LLM> AIAgent<L> {
     pub async fn query_llm(&self, query: String) -> Option<String> {
+        debug!("Sending query {}", query);
+
         let result = self.llm.send_message(query).await;
 
         if let Err(error) = result {
