@@ -16,24 +16,40 @@ impl<L: LLM> AIAgent<L> {
 
 #[async_trait]
 pub trait Agent: Send + Sync {
-    async fn query_chatgpt(&self, german: &str, english: &str) -> Option<String>;
+    async fn validate_phrase_translation(&self, german: &str, english: &str) -> Option<String>;
+    async fn ask_word_difference(&self, first: &str, second: &str) -> Option<String>;
 }
 
 #[automock]
 #[async_trait]
 impl<L: LLM> Agent for AIAgent<L> {
-    async fn query_chatgpt(&self, german: &str, english: &str) -> Option<String> {
+    async fn validate_phrase_translation(&self, german: &str, english: &str) -> Option<String> {
         info!(
             "Querying ChatGPT for saying '{}' with '{}'",
             english, german
         );
 
-        let result = self
-            .llm
-            .send_message(format!(
-                "In German, is '{german}' the right way to say '{english}'? If not, explain why and mark the differences in bold.",
-            ))
-            .await;
+        self.query_llm(format!(
+            "In German, is '{german}' the right way to say '{english}'? If not, explain why and mark the differences in bold.",
+        )).await
+    }
+
+    async fn ask_word_difference(&self, first: &str, second: &str) -> Option<String> {
+        info!(
+            "Querying ChatGPT for difference between '{}' and '{}'",
+            first, second
+        );
+
+        self.query_llm(format!(
+            "In German, what is the difference between '{first}' and '{second}'?"
+        ))
+        .await
+    }
+}
+
+impl<L: LLM> AIAgent<L> {
+    pub async fn query_llm(&self, query: String) -> Option<String> {
+        let result = self.llm.send_message(query).await;
 
         if let Err(error) = result {
             error!("Failed sending the query to ChatGPT. Error: {:?}", error);
@@ -47,7 +63,7 @@ impl<L: LLM> Agent for AIAgent<L> {
             response.model, response.content
         );
 
-        Some(response.content)
+        return Some(response.content);
     }
 }
 
@@ -74,7 +90,7 @@ mod tests {
 
         let agent = AIAgent::new(llm_mock);
         let response = agent
-            .query_chatgpt("diese wort", "this word")
+            .validate_phrase_translation("diese wort", "this word")
             .await
             .expect("Failed!");
 
@@ -82,14 +98,60 @@ mod tests {
     }
 
     #[test_log::test(tokio::test)]
-    async fn when_query_fails_should_return_none() {
+    async fn when_asking_difference_of_two_words_should_send_the_right_query() {
+        let mut llm_mock = MockLLM::new();
+        llm_mock
+            .expect_send_message()
+            .with(eq(
+                "In German, what is the difference between 'etwas' and 'sache'?"
+                    .to_string(),
+            ))
+            .return_once(move |_| {
+                Ok(LLMResponse::new(
+                    "mock".to_string(),
+                    "Etwas is something and sache is thing".to_string(),
+                ))
+            });
+
+        let agent = AIAgent::new(llm_mock);
+        let response = agent
+            .ask_word_difference("etwas", "sache")
+            .await
+            .expect("Failed!");
+
+        assert_eq!("Etwas is something and sache is thing".to_string(), response);
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_translation_query_fails_should_return_none() {
         let mut llm_mock = MockLLM::new();
         llm_mock
             .expect_send_message()
             .return_once(move |_| Err(Box::new(())));
 
         let agent = AIAgent::new(llm_mock);
-        assert_eq!(agent.query_chatgpt("etwas", "something").await, None);
+        assert_eq!(
+            agent
+                .validate_phrase_translation("etwas", "something")
+                .await,
+            None
+        );
+    }
+
+    #[test_log::test(tokio::test)]
+    async fn when_difference_query_fails_should_return_none() {
+        let mut llm_mock = MockLLM::new();
+        llm_mock
+            .expect_send_message()
+            .return_once(move |_| Err(Box::new(())));
+
+        let agent = AIAgent::new(llm_mock);
+        assert_eq!(
+            agent
+                .ask_word_difference("etwas", "sache")
+                .await,
+            None
+        );
     }
 
     mock! {
